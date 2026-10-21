@@ -19,7 +19,7 @@
         .scanner-container {
             position: relative;
             width: 100%;
-            height: 260px;
+            height: 280px;
             background-color: #020617;
             border-radius: 1rem;
             overflow: hidden;
@@ -28,6 +28,16 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+        /* AR Overlay Canvas for Scandit-like feedback */
+        #arOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
         }
         .scan-laser {
             position: absolute;
@@ -38,6 +48,7 @@
             background: #22c55e;
             box-shadow: 0 0 12px #22c55e, 0 0 20px #22c55e;
             animation: scan 2s infinite ease-in-out;
+            z-index: 10;
         }
         @keyframes scan {
             0% { top: 10%; }
@@ -55,34 +66,40 @@
                 <i class="fa-solid fa-barcode text-white text-base"></i>
             </div>
             <div>
-                <h1 class="text-base font-bold leading-none">Leitor Múltiplo</h1>
-                <span class="text-[10px] text-slate-400 font-medium">ZXing Engine • Câmera Direta</span>
+                <h1 class="text-base font-bold leading-none">Leitor Múltiplo Pro</h1>
+                <span class="text-[10px] text-emerald-400 font-semibold">AR Overlay • Scandit Style</span>
             </div>
         </div>
-        <button onclick="toggleHelpModal()" class="text-slate-400 hover:text-white p-2 rounded-lg text-sm transition">
-            <i class="fa-solid fa-circle-question text-lg"></i>
-        </button>
+        <div class="flex items-center gap-1">
+            <button onclick="toggleFormatsModal()" class="text-slate-400 hover:text-white p-2 rounded-lg text-sm transition" title="Formatos de Código">
+                <i class="fa-solid fa-sliders text-lg"></i>
+            </button>
+            <button onclick="toggleHelpModal()" class="text-slate-400 hover:text-white p-2 rounded-lg text-sm transition" title="Ajuda">
+                <i class="fa-solid fa-circle-question text-lg"></i>
+            </button>
+        </div>
     </header>
 
     <!-- Main Container -->
     <main class="w-full max-w-md p-4 flex flex-col gap-4 flex-grow">
 
-        <!-- HTTPS Security Notice Banner (Shown if not secure context) -->
+        <!-- HTTPS Security Notice Banner -->
         <div id="httpsWarning" class="hidden bg-amber-500/10 border border-amber-500/30 text-amber-300 p-3.5 rounded-xl text-xs space-y-1">
             <p class="font-bold flex items-center gap-1.5 text-amber-400">
                 <i class="fa-solid fa-triangle-exclamation text-sm"></i> Conexão Não Segura (HTTP)
             </p>
-            <p>Os navegadores do celular (Safari/Chrome) bloqueiam o acesso à câmera se o site não estiver usando <strong>HTTPS</strong> ou <strong>localhost</strong>.</p>
+            <p>Os navegadores móveis exigem <strong>HTTPS</strong> para liberar a câmera.</p>
         </div>
 
         <!-- Camera Scanner Card -->
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col items-center">
             
-            <!-- Video Viewport -->
+            <!-- Video Viewport with AR Overlay Canvas -->
             <div class="scanner-container border border-slate-800 flex items-center justify-center">
                 <video id="video" playsinline muted class="w-full h-full"></video>
+                <canvas id="arOverlay"></canvas>
                 <div id="laser" class="scan-laser hidden"></div>
-                <div id="scannerPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-slate-950/80 p-4 text-center">
+                <div id="scannerPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-slate-950/80 p-4 text-center z-30">
                     <i class="fa-solid fa-camera-retro text-4xl mb-2 opacity-50"></i>
                     <p class="text-xs font-medium">Câmera desativada</p>
                     <p class="text-[10px] text-slate-600 mt-1">Toque em "Iniciar Câmera" abaixo</p>
@@ -113,7 +130,7 @@
                     <input type="checkbox" id="soundToggle" checked class="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 w-4 h-4">
                     <span>Som Bipe</span>
                 </label>
-                <label class="flex items-center gap-1.5 cursor-pointer hover:text-slate-200">
+                <label class="flex items-center gap-1.5 cursor-pointer hover:text-slate-200" title="Quando desativado, o mesmo código só entra 1x na lista">
                     <input type="checkbox" id="allowDuplicates" class="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 w-4 h-4">
                     <span>Permitir Repetidos</span>
                 </label>
@@ -154,6 +171,38 @@
 
     </main>
 
+    <!-- Barcode Formats Config Modal -->
+    <div id="formatsModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 shadow-2xl relative text-slate-300 text-xs space-y-4 max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-indigo-400"></i> Formatos Habilitados
+                </h3>
+                <button onclick="toggleFormatsModal()" class="text-slate-500 hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <p class="text-slate-400 text-[11px]">Marque apenas os tipos de código de barras que deseja que a câmera leia:</p>
+
+            <div id="formatsList" class="flex-grow overflow-y-auto space-y-2 pr-1 my-2">
+                <!-- Checkboxes populated via JS -->
+            </div>
+
+            <div class="flex gap-2 pt-2 border-t border-slate-800">
+                <button onclick="selectAllFormats(true)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2 rounded-xl transition">
+                    Marcar Todos
+                </button>
+                <button onclick="selectAllFormats(false)" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2 rounded-xl transition">
+                    Desmarcar Todos
+                </button>
+                <button onclick="applyFormatSettings()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-xl transition">
+                    Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Troubleshooting Modal -->
     <div id="helpModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 shadow-2xl relative text-slate-300 text-xs space-y-3">
@@ -165,7 +214,7 @@
             </h3>
             <ol class="list-decimal list-inside space-y-2 text-slate-300">
                 <li class="leading-relaxed"><strong>Requisito de Conexão Segura (HTTPS):</strong> Por segurança, Android e iPhone só permitem acessar a câmera em sites que usam <span class="text-emerald-400 font-mono">https://</span>.</li>
-                <li class="leading-relaxed"><strong>Permissão de Câmera Bloqueada:</strong> Toque no ícone de "Cadeado" ou "Ajustes do Site" ao lado da URL do navegador e certifique-se de que a <strong>Câmera</strong> está definida como "Permitir".</li>
+                <li class="leading-relaxed"><strong>Permissão de Câmera Bloqueada:</strong> Toque no ícone de "Cadeado" ao lado da URL e defina a <strong>Câmera</strong> como "Permitir".</li>
                 <li class="leading-relaxed"><strong>Seleção Manual:</strong> Selecione a câmera traseira no menu suspenso "Selecionar Câmera" antes de clicar em Iniciar.</li>
             </ol>
             <button onclick="toggleHelpModal()" class="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-xl mt-2">Entendi</button>
@@ -184,26 +233,91 @@
         let selectedDeviceId = null;
         let isScanning = false;
         let scannedItems = [];
-        let lastScannedCode = '';
-        let lastScannedTime = 0;
-        const DEBOUNCE_TIME = 1500; // 1.5 seconds cooldown between identical scans
+        let activeAROverlays = []; // Holds current frames overlays
+        let overlayClearTimer = null;
+
+        // Supported Barcode Formats Map
+        const ALL_FORMATS = [
+            { name: 'EAN-13', format: ZXing.BarcodeFormat.EAN_13, checked: true },
+            { name: 'EAN-8', format: ZXing.BarcodeFormat.EAN_8, checked: true },
+            { name: 'CODE-128', format: ZXing.BarcodeFormat.CODE_128, checked: true },
+            { name: 'CODE-39', format: ZXing.BarcodeFormat.CODE_39, checked: true },
+            { name: 'QR Code', format: ZXing.BarcodeFormat.QR_CODE, checked: true },
+            { name: 'Data Matrix', format: ZXing.BarcodeFormat.DATA_MATRIX, checked: true },
+            { name: 'UPC-A', format: ZXing.BarcodeFormat.UPC_A, checked: true },
+            { name: 'UPC-E', format: ZXing.BarcodeFormat.UPC_E, checked: true },
+            { name: 'ITF (Interleaved 2 of 5)', format: ZXing.BarcodeFormat.ITF, checked: true },
+            { name: 'Codabar', format: ZXing.BarcodeFormat.CODABAR, checked: true },
+            { name: 'PDF-417', format: ZXing.BarcodeFormat.PDF_417, checked: false }
+        ];
 
         window.addEventListener('DOMContentLoaded', () => {
-            // Check HTTPS security
             if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
                 document.getElementById('httpsWarning').classList.remove('hidden');
             }
 
-            // Initialize ZXing Multi Format Reader
+            renderFormatsList();
+
             if (typeof ZXing !== 'undefined') {
-                codeReader = new ZXing.BrowserMultiFormatReader();
+                initializeZXingReader();
                 loadCameraDevices();
             } else {
                 showToast("Erro ao carregar biblioteca de código de barras.", "error");
             }
+
+            window.addEventListener('resize', syncCanvasSize);
         });
 
-        // List available cameras into select box without locking stream
+        function initializeZXingReader() {
+            // Build Hints with selected formats
+            const hints = new Map();
+            const enabledFormats = ALL_FORMATS.filter(f => f.checked).map(f => f.format);
+            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, enabledFormats);
+
+            codeReader = new ZXing.BrowserMultiFormatReader(hints);
+        }
+
+        function renderFormatsList() {
+            const container = document.getElementById('formatsList');
+            container.innerHTML = ALL_FORMATS.map((item, index) => `
+                <label class="flex items-center justify-between p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl cursor-pointer hover:border-indigo-500/50 transition">
+                    <span class="font-medium text-slate-200">${item.name}</span>
+                    <input type="checkbox" data-index="${index}" ${item.checked ? 'checked' : ''} class="format-checkbox rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                </label>
+            `).join('');
+        }
+
+        function selectAllFormats(status) {
+            document.querySelectorAll('.format-checkbox').forEach(cb => cb.checked = status);
+        }
+
+        function applyFormatSettings() {
+            document.querySelectorAll('.format-checkbox').forEach(cb => {
+                const idx = parseInt(cb.getAttribute('data-index'));
+                ALL_FORMATS[idx].checked = cb.checked;
+            });
+
+            initializeZXingReader();
+            toggleFormatsModal();
+            showToast("Configurações de formato atualizadas!");
+
+            if (isScanning) {
+                stopCamera();
+                initCamera();
+            }
+        }
+
+        // Adjust Canvas Size to match Video Viewport
+        function syncCanvasSize() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('arOverlay');
+            if (video && canvas) {
+                canvas.width = video.clientWidth;
+                canvas.height = video.clientHeight;
+            }
+        }
+
+        // List available cameras
         async function loadCameraDevices() {
             const select = document.getElementById('cameraSelect');
             try {
@@ -228,14 +342,12 @@
                     const label = device.label || `Câmera ${index + 1}`;
                     option.text = label;
 
-                    // Detect back camera (environment)
                     if (label.toLowerCase().includes('back') || label.toLowerCase().includes('traseira') || label.toLowerCase().includes('environment') || label.toLowerCase().includes('trás')) {
                         backCameraId = device.deviceId;
                     }
                     select.appendChild(option);
                 });
 
-                // Auto-select back camera if found
                 if (backCameraId) {
                     select.value = backCameraId;
                     selectedDeviceId = backCameraId;
@@ -252,12 +364,12 @@
                 });
 
             } catch (err) {
-                console.warn("Aviso ao listar câmeras (permissão pendente):", err);
+                console.warn("Aviso ao listar câmeras:", err);
                 select.innerHTML = '<option value="">Toque em Iniciar para conceder permissão</option>';
             }
         }
 
-        // Start Scanner with robust error handling & fallback
+        // Start Scanner
         async function initCamera() {
             if (isScanning) return;
 
@@ -270,16 +382,13 @@
             }
 
             try {
-                // Attempt decoding with specific device or default
                 await codeReader.decodeFromVideoDevice(
                     selectedDeviceId || undefined, 
                     'video', 
                     (result, err) => {
+                        syncCanvasSize();
                         if (result) {
-                            handleScanSuccess(result.getText(), result.getBarcodeFormat());
-                        }
-                        if (err && !(err instanceof ZXing.NotFoundException)) {
-                            console.warn("ZXing notice:", err);
+                            handleScanSuccess(result);
                         }
                     }
                 );
@@ -288,34 +397,12 @@
                 placeholder.classList.add('hidden');
                 laser.classList.remove('hidden');
                 updateUIState(true);
-                showToast("Câmera ativada com sucesso!");
+                showToast("Câmera ativada!");
 
             } catch (err) {
-                console.error("Falha primária ao iniciar câmera, tentando fallback:", err);
-                
-                // Fallback attempt with environment facingMode constraints
-                try {
-                    await codeReader.decodeFromConstraints(
-                        { video: { facingMode: 'environment' } },
-                        'video',
-                        (result, err) => {
-                            if (result) {
-                                handleScanSuccess(result.getText(), result.getBarcodeFormat());
-                            }
-                        }
-                    );
-
-                    isScanning = true;
-                    placeholder.classList.add('hidden');
-                    laser.classList.remove('hidden');
-                    updateUIState(true);
-                    showToast("Câmera ativada (Modo Traseiro Padrão)!");
-
-                } catch (fallbackErr) {
-                    console.error("Falha total ao abrir câmera:", fallbackErr);
-                    showToast("Não foi possível acessar a câmera.", "error");
-                    toggleHelpModal();
-                }
+                console.error("Erro ao iniciar câmera:", err);
+                showToast("Não foi possível acessar a câmera.", "error");
+                toggleHelpModal();
             }
         }
 
@@ -326,6 +413,7 @@
             codeReader.reset();
             isScanning = false;
 
+            clearAROverlay();
             document.getElementById('scannerPlaceholder').classList.remove('hidden');
             document.getElementById('laser').classList.add('hidden');
             updateUIState(false);
@@ -347,18 +435,22 @@
             }
         }
 
-        // Process Successful Scan
-        function handleScanSuccess(codeText, format) {
-            const currentTime = Date.now();
+        // Process Scan Result & Render Scandit AR Indicator
+        function handleScanSuccess(result) {
+            const codeText = result.getText();
+            const format = result.getBarcodeFormat();
+            const resultPoints = result.getResultPoints() || [];
             const allowDuplicates = document.getElementById('allowDuplicates').checked;
 
-            // Debounce / duplicate check
-            if (!allowDuplicates && codeText === lastScannedCode && (currentTime - lastScannedTime) < DEBOUNCE_TIME) {
-                return;
-            }
+            const isAlreadyScanned = scannedItems.some(item => item.code === codeText);
 
-            lastScannedCode = codeText;
-            lastScannedTime = currentTime;
+            // Draw Scandit MatrixScan style bounding box overlay
+            drawScanditOverlay(resultPoints, isAlreadyScanned, codeText);
+
+            // Check if duplicate is blocked
+            if (!allowDuplicates && isAlreadyScanned) {
+                return; // Suppress duplicate insertion
+            }
 
             playBeepSound();
 
@@ -377,7 +469,92 @@
             showToast(`Lido: ${codeText}`);
         }
 
-        // Play Beep Sound via Web Audio API
+        // Scandit-style Overlay Renderer (Green pill with Checkmark for already read)
+        function drawScanditOverlay(points, isAlreadyRead, codeText) {
+            const canvas = document.getElementById('arOverlay');
+            const video = document.getElementById('video');
+            if (!canvas || !video || points.length === 0) return;
+
+            const ctx = canvas.getContext('2d');
+            
+            // Calculate scale based on video native size vs displayed canvas size
+            const scaleX = canvas.width / (video.videoWidth || canvas.width);
+            const scaleY = canvas.height / (video.videoHeight || canvas.height);
+
+            // Convert points
+            const scaledPoints = points.map(p => ({
+                x: p.x * scaleX,
+                y: p.y * scaleY
+            }));
+
+            // Find Bounding Box
+            let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+            scaledPoints.forEach(p => {
+                if (p.x < minX) minX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y > maxY) maxY = p.y;
+            });
+
+            const width = Math.max(maxX - minX, 40);
+            const height = Math.max(maxY - minY, 20);
+            const centerX = minX + width / 2;
+            const centerY = minY + height / 2;
+
+            // Clear previous overlays and schedule auto-clear
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (overlayClearTimer) clearTimeout(overlayClearTimer);
+
+            // Draw Scandit MatrixScan Rounded Box
+            ctx.save();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = isAlreadyRead ? '#22c55e' : '#6366f1'; // Green if scanned, Indigo if new
+            ctx.fillStyle = isAlreadyRead ? 'rgba(34, 197, 94, 0.25)' : 'rgba(99, 102, 241, 0.25)';
+
+            // Draw rounded rectangle around code
+            const radius = 8;
+            ctx.beginPath();
+            ctx.roundRect(minX - 6, minY - 6, width + 12, height + 12, radius);
+            ctx.fill();
+            ctx.stroke();
+
+            // Draw Scandit Check Icon Badge on Center for already scanned items
+            if (isAlreadyRead) {
+                const badgeRadius = 14;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, badgeRadius, 0, 2 * Math.PI);
+                ctx.fillStyle = '#22c55e';
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+                ctx.shadowBlur = 6;
+                ctx.fill();
+
+                // Checkmark symbol
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(centerX - 6, centerY);
+                ctx.lineTo(centerX - 1, centerY + 5);
+                ctx.lineTo(centerX + 6, centerY - 4);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+
+            // Auto fade out overlay after 800ms
+            overlayClearTimer = setTimeout(() => {
+                clearAROverlay();
+            }, 800);
+        }
+
+        function clearAROverlay() {
+            const canvas = document.getElementById('arOverlay');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        // Sound Beep
         function playBeepSound() {
             if (!document.getElementById('soundToggle').checked) return;
             try {
@@ -386,16 +563,16 @@
                 const gain = audioCtx.createGain();
 
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(1000, audioCtx.currentTime); // 1000 Hz tone
+                osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
                 gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
 
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
 
                 osc.start();
-                osc.stop(audioCtx.currentTime + 0.12); // 120ms beep
+                osc.stop(audioCtx.currentTime + 0.12);
             } catch (e) {
-                console.log("Áudio bloqueado pelo navegador", e);
+                console.log("Áudio bloqueado", e);
             }
         }
 
@@ -404,7 +581,7 @@
             return ZXing.BarcodeFormat[formatEnum] || 'Código de Barras';
         }
 
-        // Render Items List
+        // Render Scanned List UI
         function updateListUI() {
             const container = document.getElementById('scannedListContainer');
             const badge = document.getElementById('counterBadge');
@@ -426,8 +603,8 @@
                 html += `
                     <div class="flex items-center justify-between bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl hover:border-slate-700 transition">
                         <div class="flex items-center gap-3 overflow-hidden">
-                            <span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold text-[11px] w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0">
-                                ${scannedItems.length - index}
+                            <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-[11px] w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0">
+                                <i class="fa-solid fa-check text-[10px]"></i>
                             </span>
                             <div class="overflow-hidden">
                                 <p class="font-mono font-bold text-slate-100 text-xs truncate select-all">${escapeHtml(item.code)}</p>
@@ -529,11 +706,14 @@
             document.getElementById('helpModal').classList.toggle('hidden');
         }
 
+        function toggleFormatsModal() {
+            document.getElementById('formatsModal').classList.toggle('hidden');
+        }
+
         function escapeHtml(text) {
             return text.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
         }
 
-        // Clean up camera stream on exit
         window.addEventListener('beforeunload', () => {
             if (codeReader) codeReader.reset();
         });
