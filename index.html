@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Leitor de Códigos Múltiplo</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ZXing Browser Library for Reliable Barcode Scanning -->
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        .scanner-container {
+            position: relative;
+            width: 100%;
+            height: 260px;
+            background-color: #020617;
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .scan-laser {
+            position: absolute;
+            top: 0;
+            left: 5%;
+            width: 90%;
+            height: 2px;
+            background: #22c55e;
+            box-shadow: 0 0 12px #22c55e, 0 0 20px #22c55e;
+            animation: scan 2s infinite ease-in-out;
+        }
+        @keyframes scan {
+            0% { top: 10%; }
+            50% { top: 90%; }
+            100% { top: 10%; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center pb-12">
+
+    <!-- Header -->
+    <header class="w-full max-w-md bg-slate-900/90 backdrop-blur-md border-b border-slate-800 text-white p-4 sticky top-0 z-40 flex justify-between items-center shadow-lg">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-indigo-500/30 shadow-md">
+                <i class="fa-solid fa-barcode text-white text-base"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-bold leading-none">Leitor Múltiplo</h1>
+                <span class="text-[10px] text-slate-400 font-medium">ZXing Engine • Câmera Direta</span>
+            </div>
+        </div>
+        <button onclick="toggleHelpModal()" class="text-slate-400 hover:text-white p-2 rounded-lg text-sm transition">
+            <i class="fa-solid fa-circle-question text-lg"></i>
+        </button>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-md p-4 flex flex-col gap-4 flex-grow">
+
+        <!-- HTTPS Security Notice Banner (Shown if not secure context) -->
+        <div id="httpsWarning" class="hidden bg-amber-500/10 border border-amber-500/30 text-amber-300 p-3.5 rounded-xl text-xs space-y-1">
+            <p class="font-bold flex items-center gap-1.5 text-amber-400">
+                <i class="fa-solid fa-triangle-exclamation text-sm"></i> Conexão Não Segura (HTTP)
+            </p>
+            <p>Os navegadores do celular (Safari/Chrome) bloqueiam o acesso à câmera se o site não estiver usando <strong>HTTPS</strong> ou <strong>localhost</strong>.</p>
+        </div>
+
+        <!-- Camera Scanner Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col items-center">
+            
+            <!-- Video Viewport -->
+            <div class="scanner-container border border-slate-800 flex items-center justify-center">
+                <video id="video" playsinline muted class="w-full h-full"></video>
+                <div id="laser" class="scan-laser hidden"></div>
+                <div id="scannerPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-slate-950/80 p-4 text-center">
+                    <i class="fa-solid fa-camera-retro text-4xl mb-2 opacity-50"></i>
+                    <p class="text-xs font-medium">Câmera desativada</p>
+                    <p class="text-[10px] text-slate-600 mt-1">Toque em "Iniciar Câmera" abaixo</p>
+                </div>
+            </div>
+
+            <!-- Camera Device Selector Dropdown -->
+            <div class="w-full mt-3">
+                <label for="cameraSelect" class="block text-[11px] font-semibold text-slate-400 mb-1">Selecionar Câmera:</label>
+                <select id="cameraSelect" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl p-2.5 focus:outline-none focus:border-indigo-500 transition">
+                    <option value="">Carregando câmeras disponíveis...</option>
+                </select>
+            </div>
+
+            <!-- Scanner Controls -->
+            <div class="w-full flex gap-2 mt-3">
+                <button id="startBtn" onclick="initCamera()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-emerald-900/20 transition flex items-center justify-center gap-2 text-sm">
+                    <i class="fa-solid fa-play"></i> Iniciar Câmera
+                </button>
+                <button id="stopBtn" onclick="stopCamera()" disabled class="flex-1 bg-rose-600/20 text-rose-400 border border-rose-500/30 hover:bg-rose-600 hover:text-white active:scale-95 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                    <i class="fa-solid fa-stop"></i> Pausar
+                </button>
+            </div>
+
+            <!-- Controls bar: Sound & Duplicate Options -->
+            <div class="flex items-center justify-between w-full mt-3 pt-3 border-t border-slate-800/80 text-xs text-slate-400">
+                <label class="flex items-center gap-1.5 cursor-pointer hover:text-slate-200">
+                    <input type="checkbox" id="soundToggle" checked class="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                    <span>Som Bipe</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer hover:text-slate-200">
+                    <input type="checkbox" id="allowDuplicates" class="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                    <span>Permitir Repetidos</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Scanned Items List Section -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col flex-grow">
+            <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-slate-200 text-sm">Códigos Lidos</h3>
+                    <span id="counterBadge" class="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-xs font-bold px-2.5 py-0.5 rounded-full">0</span>
+                </div>
+                <div class="flex gap-1.5">
+                    <button onclick="copyAllToClipboard()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium px-2.5 py-1.5 rounded-lg transition flex items-center gap-1" title="Copiar tudo">
+                        <i class="fa-solid fa-copy"></i>
+                    </button>
+                    <button onclick="exportData('csv')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium px-2.5 py-1.5 rounded-lg transition flex items-center gap-1">
+                        <i class="fa-solid fa-file-csv"></i> CSV
+                    </button>
+                    <button onclick="exportData('txt')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium px-2.5 py-1.5 rounded-lg transition flex items-center gap-1">
+                        <i class="fa-solid fa-file-lines"></i> TXT
+                    </button>
+                    <button onclick="clearList()" class="bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white text-xs font-medium px-2.5 py-1.5 rounded-lg transition border border-rose-500/20" title="Limpar lista">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- List viewport -->
+            <div id="scannedListContainer" class="flex-grow overflow-y-auto max-h-72 space-y-2 pr-1">
+                <div id="emptyState" class="text-center py-8 text-slate-500 text-xs">
+                    <i class="fa-solid fa-barcode text-3xl mb-2 block opacity-30"></i>
+                    Nenhum código lido ainda.<br>Inicie a câmera e comece a escanear!
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Troubleshooting Modal -->
+    <div id="helpModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-5 shadow-2xl relative text-slate-300 text-xs space-y-3">
+            <button onclick="toggleHelpModal()" class="absolute top-4 right-4 text-slate-500 hover:text-slate-200">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> A câmera não abre? Veja como resolver:
+            </h3>
+            <ol class="list-decimal list-inside space-y-2 text-slate-300">
+                <li class="leading-relaxed"><strong>Requisito de Conexão Segura (HTTPS):</strong> Por segurança, Android e iPhone só permitem acessar a câmera em sites que usam <span class="text-emerald-400 font-mono">https://</span>.</li>
+                <li class="leading-relaxed"><strong>Permissão de Câmera Bloqueada:</strong> Toque no ícone de "Cadeado" ou "Ajustes do Site" ao lado da URL do navegador e certifique-se de que a <strong>Câmera</strong> está definida como "Permitir".</li>
+                <li class="leading-relaxed"><strong>Seleção Manual:</strong> Selecione a câmera traseira no menu suspenso "Selecionar Câmera" antes de clicar em Iniciar.</li>
+            </ol>
+            <button onclick="toggleHelpModal()" class="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-xl mt-2">Entendi</button>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-slate-900 border border-slate-700 text-white text-xs px-4 py-2.5 rounded-xl shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2">
+        <i id="toastIcon" class="fa-solid fa-check text-emerald-400"></i>
+        <span id="toastMessage">Mensagem</span>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        let codeReader = null;
+        let selectedDeviceId = null;
+        let isScanning = false;
+        let scannedItems = [];
+        let lastScannedCode = '';
+        let lastScannedTime = 0;
+        const DEBOUNCE_TIME = 1500; // 1.5 seconds cooldown between identical scans
+
+        window.addEventListener('DOMContentLoaded', () => {
+            // Check HTTPS security
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                document.getElementById('httpsWarning').classList.remove('hidden');
+            }
+
+            // Initialize ZXing Multi Format Reader
+            if (typeof ZXing !== 'undefined') {
+                codeReader = new ZXing.BrowserMultiFormatReader();
+                loadCameraDevices();
+            } else {
+                showToast("Erro ao carregar biblioteca de código de barras.", "error");
+            }
+        });
+
+        // List available cameras into select box without locking stream
+        async function loadCameraDevices() {
+            const select = document.getElementById('cameraSelect');
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                    select.innerHTML = '<option value="">API de Câmera não suportada</option>';
+                    return;
+                }
+
+                const devices = await codeReader.listVideoInputDevices();
+                select.innerHTML = '';
+
+                if (devices.length === 0) {
+                    select.innerHTML = '<option value="">Nenhuma câmera encontrada</option>';
+                    return;
+                }
+
+                let backCameraId = null;
+
+                devices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    const label = device.label || `Câmera ${index + 1}`;
+                    option.text = label;
+
+                    // Detect back camera (environment)
+                    if (label.toLowerCase().includes('back') || label.toLowerCase().includes('traseira') || label.toLowerCase().includes('environment') || label.toLowerCase().includes('trás')) {
+                        backCameraId = device.deviceId;
+                    }
+                    select.appendChild(option);
+                });
+
+                // Auto-select back camera if found
+                if (backCameraId) {
+                    select.value = backCameraId;
+                    selectedDeviceId = backCameraId;
+                } else if (devices.length > 0) {
+                    selectedDeviceId = devices[0].deviceId;
+                }
+
+                select.addEventListener('change', (e) => {
+                    selectedDeviceId = e.target.value;
+                    if (isScanning) {
+                        stopCamera();
+                        initCamera();
+                    }
+                });
+
+            } catch (err) {
+                console.warn("Aviso ao listar câmeras (permissão pendente):", err);
+                select.innerHTML = '<option value="">Toque em Iniciar para conceder permissão</option>';
+            }
+        }
+
+        // Start Scanner with robust error handling & fallback
+        async function initCamera() {
+            if (isScanning) return;
+
+            const placeholder = document.getElementById('scannerPlaceholder');
+            const laser = document.getElementById('laser');
+            const select = document.getElementById('cameraSelect');
+
+            if (select && select.value) {
+                selectedDeviceId = select.value;
+            }
+
+            try {
+                // Attempt decoding with specific device or default
+                await codeReader.decodeFromVideoDevice(
+                    selectedDeviceId || undefined, 
+                    'video', 
+                    (result, err) => {
+                        if (result) {
+                            handleScanSuccess(result.getText(), result.getBarcodeFormat());
+                        }
+                        if (err && !(err instanceof ZXing.NotFoundException)) {
+                            console.warn("ZXing notice:", err);
+                        }
+                    }
+                );
+
+                isScanning = true;
+                placeholder.classList.add('hidden');
+                laser.classList.remove('hidden');
+                updateUIState(true);
+                showToast("Câmera ativada com sucesso!");
+
+            } catch (err) {
+                console.error("Falha primária ao iniciar câmera, tentando fallback:", err);
+                
+                // Fallback attempt with environment facingMode constraints
+                try {
+                    await codeReader.decodeFromConstraints(
+                        { video: { facingMode: 'environment' } },
+                        'video',
+                        (result, err) => {
+                            if (result) {
+                                handleScanSuccess(result.getText(), result.getBarcodeFormat());
+                            }
+                        }
+                    );
+
+                    isScanning = true;
+                    placeholder.classList.add('hidden');
+                    laser.classList.remove('hidden');
+                    updateUIState(true);
+                    showToast("Câmera ativada (Modo Traseiro Padrão)!");
+
+                } catch (fallbackErr) {
+                    console.error("Falha total ao abrir câmera:", fallbackErr);
+                    showToast("Não foi possível acessar a câmera.", "error");
+                    toggleHelpModal();
+                }
+            }
+        }
+
+        // Stop Scanner
+        function stopCamera() {
+            if (!codeReader) return;
+
+            codeReader.reset();
+            isScanning = false;
+
+            document.getElementById('scannerPlaceholder').classList.remove('hidden');
+            document.getElementById('laser').classList.add('hidden');
+            updateUIState(false);
+            showToast("Câmera pausada.");
+        }
+
+        function updateUIState(active) {
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+
+            if (active) {
+                startBtn.disabled = true;
+                startBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                stopBtn.disabled = false;
+            } else {
+                startBtn.disabled = false;
+                startBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                stopBtn.disabled = true;
+            }
+        }
+
+        // Process Successful Scan
+        function handleScanSuccess(codeText, format) {
+            const currentTime = Date.now();
+            const allowDuplicates = document.getElementById('allowDuplicates').checked;
+
+            // Debounce / duplicate check
+            if (!allowDuplicates && codeText === lastScannedCode && (currentTime - lastScannedTime) < DEBOUNCE_TIME) {
+                return;
+            }
+
+            lastScannedCode = codeText;
+            lastScannedTime = currentTime;
+
+            playBeepSound();
+
+            const now = new Date();
+            const timestamp = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR');
+
+            const item = {
+                id: Date.now() + Math.random().toString(36).substring(2, 5),
+                code: codeText,
+                format: formatName(format),
+                time: timestamp
+            };
+
+            scannedItems.unshift(item);
+            updateListUI();
+            showToast(`Lido: ${codeText}`);
+        }
+
+        // Play Beep Sound via Web Audio API
+        function playBeepSound() {
+            if (!document.getElementById('soundToggle').checked) return;
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1000, audioCtx.currentTime); // 1000 Hz tone
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.12); // 120ms beep
+            } catch (e) {
+                console.log("Áudio bloqueado pelo navegador", e);
+            }
+        }
+
+        function formatName(formatEnum) {
+            if (formatEnum === undefined || formatEnum === null) return 'Código de Barras';
+            return ZXing.BarcodeFormat[formatEnum] || 'Código de Barras';
+        }
+
+        // Render Items List
+        function updateListUI() {
+            const container = document.getElementById('scannedListContainer');
+            const badge = document.getElementById('counterBadge');
+
+            badge.textContent = scannedItems.length;
+
+            if (scannedItems.length === 0) {
+                container.innerHTML = `
+                    <div id="emptyState" class="text-center py-8 text-slate-500 text-xs">
+                        <i class="fa-solid fa-barcode text-3xl mb-2 block opacity-30"></i>
+                        Nenhum código lido ainda.<br>Inicie a câmera e comece a escanear!
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            scannedItems.forEach((item, index) => {
+                html += `
+                    <div class="flex items-center justify-between bg-slate-950/60 border border-slate-800/80 p-3 rounded-xl hover:border-slate-700 transition">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold text-[11px] w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0">
+                                ${scannedItems.length - index}
+                            </span>
+                            <div class="overflow-hidden">
+                                <p class="font-mono font-bold text-slate-100 text-xs truncate select-all">${escapeHtml(item.code)}</p>
+                                <p class="text-[10px] text-slate-500 mt-0.5">${item.time} • <span class="text-indigo-400 font-medium">${item.format}</span></p>
+                            </div>
+                        </div>
+                        <button onclick="deleteItem('${item.id}')" class="text-slate-500 hover:text-rose-400 p-2 transition">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function deleteItem(id) {
+            scannedItems = scannedItems.filter(item => item.id !== id);
+            updateListUI();
+            showToast("Item removido.");
+        }
+
+        function clearList() {
+            if (scannedItems.length === 0) return;
+            scannedItems = [];
+            updateListUI();
+            showToast("Lista limpa.");
+        }
+
+        function copyAllToClipboard() {
+            if (scannedItems.length === 0) {
+                showToast("Nenhum código para copiar!", "error");
+                return;
+            }
+            const text = scannedItems.map(i => i.code).join('\n');
+            
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+
+            showToast("Códigos copiados para a área de transferência!");
+        }
+
+        function exportData(format) {
+            if (scannedItems.length === 0) {
+                showToast("Nenhum dado para exportar!", "error");
+                return;
+            }
+
+            let fileContent = '';
+            let mimeType = '';
+            let filename = `codigos_lidos_${new Date().toISOString().slice(0,10)}`;
+
+            if (format === 'csv') {
+                fileContent = "Codigo,DataHora,Formato\n";
+                scannedItems.forEach(item => {
+                    fileContent += `"${item.code}","${item.time}","${item.format}"\n`;
+                });
+                mimeType = 'text/csv;charset=utf-8;';
+                filename += '.csv';
+            } else {
+                scannedItems.forEach(item => {
+                    fileContent += `${item.code}\t${item.time}\t${item.format}\n`;
+                });
+                mimeType = 'text/plain;charset=utf-8;';
+                filename += '.txt';
+            }
+
+            const blob = new Blob([fileContent], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast(`Arquivo ${filename} baixado!`);
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMessage.textContent = message;
+            toastIcon.className = type === 'success' 
+                ? 'fa-solid fa-check text-emerald-400' 
+                : 'fa-solid fa-triangle-exclamation text-amber-400';
+
+            toast.classList.remove('opacity-0');
+            setTimeout(() => toast.classList.add('opacity-0'), 2500);
+        }
+
+        function toggleHelpModal() {
+            document.getElementById('helpModal').classList.toggle('hidden');
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
+        }
+
+        // Clean up camera stream on exit
+        window.addEventListener('beforeunload', () => {
+            if (codeReader) codeReader.reset();
+        });
+    </script>
+</body>
+</html>
